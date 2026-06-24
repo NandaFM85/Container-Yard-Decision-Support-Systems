@@ -9,7 +9,7 @@ const app = new Elysia()
   .use(cors())
   .group('/api', (app) => app
     
-    // Endpoint Ambil Data Containers
+    // 1. Endpoint Ambil Data Containers (Paginasi & Search)
     .get('/containers', async ({ query }) => {
       try {
         const page = parseInt(query.page || '1');
@@ -17,17 +17,14 @@ const app = new Elysia()
         const search = query.search || '';
         const offset = (page - 1) * limit;
 
-        // Jika search kosong, searchFilter = undefined (Drizzle otomatis abaikan WHERE)
         const searchFilter = search ? ilike(containers.id, `%${search}%`) : undefined;
 
-        // Eksekusi Drizzle yang setara dengan: SELECT count(*) FROM public.containers
         const result = await db.select({ total: count() })
           .from(containers)
           .where(searchFilter);
 
         const total = result[0]?.total ?? 0;
 
-        // Eksekusi Drizzle yang setara dengan: SELECT * FROM public.containers LIMIT .. OFFSET ..
         const data = await db.select()
           .from(containers)
           .where(searchFilter)
@@ -45,12 +42,57 @@ const app = new Elysia()
         return { error: "Terjadi kesalahan pada database", detail: error.message };
       }
     })
+    
+    // 2. Endpoint Tambah Data Containers Massal (Bulk Insert dari CSV)
+    // INI ADALAH BAGIAN YANG BARU DITAMBAHKAN
+    .post('/containers/bulk', async ({ body, set }) => {
+      try {
+        const data = body as any[];
 
-    // 2. Eksekusi Optimasi SPK
+        if (!data || data.length === 0) {
+          set.status = 400;
+          return { status: 'error', message: 'Data kosong atau tidak valid.' };
+        }
+
+        // Formatting data agar sesuai dengan tipe Drizzle & PostgreSQL
+          const formattedData = data.map((row) => ({
+          id: row.id,
+          type: row.type,
+          size: Number(row.size), // Pastikan menjadi number karena dari CSV berupa string
+          status: row.status,
+          weight: row.weight,
+          targetDate: row.target_date // <-- UBAH 1: Disesuaikan dengan nama di schema.ts
+        }));
+
+        // Eksekusi insert menggunakan Drizzle
+        // onConflictDoNothing mencegah error jika ada ID Peti Kemas yang duplikat
+        await db.insert(containers)
+          .values(formattedData)
+          .onConflictDoNothing({ target: containers.id }); // <-- UBAH 2: Menambahkan target primary key
+
+        return { 
+          status: 'success', 
+          message: `${formattedData.length} data peti kemas berhasil diproses!` 
+        };
+
+      } catch (error: any) {
+        console.error("🔥 ERROR BULK INSERT:", error);
+        set.status = 500;
+        return { 
+          status: 'error', 
+          message: 'Gagal menyimpan data ke database.',
+          detail: error.message 
+        };
+      }
+    }, {
+      // Validasi: pastikan payload dari frontend adalah bentuk Array
+      body: t.Array(t.Any())
+    })
+
+    // 3. Eksekusi Optimasi SPK
     .post('/optimize', async ({ body }) => {
       const incomingContainer = body.container as Container;
 
-      // Ambil slot yang masih kosong dari database
       const availableSlotsDb = await db
         .select()
         .from(yardSlots)
@@ -60,7 +102,6 @@ const app = new Elysia()
         return { error: 'Tidak ada slot kosong yang tersedia di Container Yard.' };
       }
 
-      // Format data untuk dimasukkan ke sistem SPK
       const formattedSlots = availableSlotsDb.map(slot => ({
         id: slot.id,
         block: slot.blockName,
@@ -74,7 +115,6 @@ const app = new Elysia()
 
       return result;
     }, {
-      // Validasi payload (mencegah error kalau frontend kirim data kosong)
       body: t.Object({
         container: t.Object({
           id: t.String(),

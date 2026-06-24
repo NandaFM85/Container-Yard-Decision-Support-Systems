@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import BulkUploadModal from './bulkupmodal'; // Pastikan nama file import-nya sesuai dengan yang kamu buat
 
 // Definisi Tipe Data
 interface Container {
@@ -21,6 +22,10 @@ export default function App() {
   const [isDarkMode, setIsDarkMode] = useState(false);
   const [spkResult, setSpkResult] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(false);
+  
+  // State untuk Modal Upload CSV
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false); 
+  
   const appRef = useRef<HTMLDivElement>(null);
 
   // Fungsi Mengambil Data dari Backend
@@ -99,8 +104,8 @@ export default function App() {
       {/* Main Content */}
       <main className="p-4 md:p-8 max-w-7xl mx-auto">
         
-        {/* Search Bar */}
-        <div className="mb-6">
+        {/* Search Bar & Tombol Import */}
+        <div className="mb-6 flex flex-col md:flex-row gap-4 justify-between items-center">
           <input
             type="text"
             placeholder="🔍 Cari ID Peti Kemas (Contoh: MSKU)..."
@@ -111,6 +116,12 @@ export default function App() {
             }}
             className={`w-full md:w-1/3 p-3 border rounded-lg outline-none focus:ring-2 focus:ring-blue-500 transition-all ${isDarkMode ? 'bg-slate-800 border-slate-600 text-white focus:bg-slate-700' : 'bg-white border-slate-300'}`}
           />
+          <button 
+            onClick={() => setIsUploadModalOpen(true)}
+            className="w-full md:w-auto px-5 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-colors shadow-md"
+          >
+            + Import Data CSV
+          </button>
         </div>
 
         {/* Data Table */}
@@ -183,10 +194,18 @@ export default function App() {
 
       </main>
 
-      {/* Modal Popup Hasil SPK */}
+      {/* Komponen Modal Upload CSV */}
+      <BulkUploadModal 
+        isOpen={isUploadModalOpen}
+        onClose={() => setIsUploadModalOpen(false)}
+        onSuccess={fetchContainers} // Merefresh tabel otomatis setelah upload sukses
+        isDarkMode={isDarkMode}
+      />
+
+     {/* Modal Popup Hasil SPK */}
       {spkResult && (
-        <div className="fixed inset-0 bg-black bg-opacity-60 backdrop-blur-sm flex items-center justify-center p-4 z-50 transition-opacity">
-          <div className={`p-6 md:p-8 rounded-2xl w-full max-w-lg shadow-2xl border ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
+        <div className={`fixed inset-0 z-50 flex items-center justify-center backdrop-blur-sm p-4 transition-all duration-300 ${isDarkMode ? 'bg-slate-900/80' : 'bg-slate-200/60'}`}>
+          <div className={`p-6 md:p-8 rounded-2xl w-full max-w-lg shadow-2xl border transition-colors duration-300 ${isDarkMode ? 'bg-slate-800 border-slate-700' : 'bg-white border-slate-200'}`}>
             <h2 className="text-2xl font-bold mb-1">Rekomendasi Penempatan</h2>
             <p className="text-slate-500 mb-6 font-mono">ID Peti Kemas: {spkResult.containerId}</p>
 
@@ -203,11 +222,11 @@ export default function App() {
                 </div>
 
                 <h4 className="font-bold text-sm uppercase tracking-wider mb-3 text-slate-500">Alternatif Slot Lainnya</h4>
-                <ul className={`text-sm max-h-40 overflow-y-auto rounded-lg p-2 border ${isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
+                <ul className={`text-sm max-h-40 overflow-y-auto rounded-lg p-2 border transition-colors duration-300 ${isDarkMode ? 'bg-slate-900 border-slate-700' : 'bg-slate-50 border-slate-200'}`}>
                   {spkResult.ranking?.slice(1, 6).map((rank: any, index: number) => (
                     <li key={index} className={`flex justify-between items-center py-2 px-3 border-b last:border-0 ${isDarkMode ? 'border-slate-800' : 'border-slate-200'}`}>
                       <span className="font-mono font-medium">{index + 2}. {rank.slotId}</span>
-                      <span className="text-xs font-bold px-2 py-1 bg-slate-200 dark:bg-slate-700 rounded text-slate-600 dark:text-slate-300">
+                      <span className={`text-xs font-bold px-2 py-1 rounded transition-colors duration-300 ${isDarkMode ? 'bg-slate-700 text-slate-300' : 'bg-slate-200 text-slate-600'}`}>
                         Skor: {rank.finalScore}
                       </span>
                     </li>
